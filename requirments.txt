@@ -1,0 +1,16 @@
+pandas
+numpy
+sqlalchemy
+pymysql
+cryptography
+requests
+kaggle
+matplotlib
+seaborn
+plotly
+scikit-learn
+joblib
+streamlit>=1.50
+jupyter
+cryptography
+pymssql

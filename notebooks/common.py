@@ -6,5 +6,5 @@ import requests
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import URL
 import pandas as pd
-from db import setup_database
-setup_database()
+from db import get_engine
+from sqlalchemy.types import NVARCHAR, Float

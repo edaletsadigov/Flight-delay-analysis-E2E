@@ -11,8 +11,6 @@ plotly
 scikit-learn
 joblib
 streamlit>=1.50
-jupyter
-cryptography
-pymssql
+ipykernel
 timezonefinder==9.0.0
 timezonefinder-data==3.2026.4

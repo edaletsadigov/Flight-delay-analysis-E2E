@@ -14,3 +14,4 @@ streamlit>=1.50
 ipykernel
 timezonefinder==9.0.0
 timezonefinder-data==3.2026.4
+pymssql

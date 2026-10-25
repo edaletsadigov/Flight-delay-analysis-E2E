@@ -9,3 +9,4 @@ import pandas as pd
 from db import get_engine
 from sqlalchemy.types import NVARCHAR, Float
 import pyarrow.parquet as pq
+import sys

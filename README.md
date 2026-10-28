@@ -1,4 +1,7 @@
 # ✈️ Flight Delay Analysis — Uçuş Gecikmələrinin Təhlili
+<p align="center">
+  <img src="a_wide_cinematic_high_resolution_banner_style_im.png" width="100%">
+</p>
 
 ## 📌 Layihə haqqında
 

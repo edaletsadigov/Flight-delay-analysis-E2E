@@ -1,6 +1,6 @@
 # ✈️ Flight Delay Analysis — Uçuş Gecikmələrinin Təhlili
 <p align="center">
-  <img src="Flight Delay Analysis Above the Clouds.png" width="100%">
+  <img src="photos/Flight Delay Analysis Above the Clouds.png" width="100%">
 </p>
 
 ## 📌 Layihə haqqında

@@ -185,3 +185,18 @@ __marimo__/
 
 # Dataset
 data/Flight/flights.csv
+
+# Virtual environments
+.venv/
+.venv312/
+venv/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Environment variables
+.env
+
+# Jupyter
+.ipynb_checkpoints/

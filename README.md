@@ -24,7 +24,7 @@ Layihə məlumatların təmizlənməsindən və SQL Server-də saxlanılmasında
 📁 Layihənin strukturu
 ## Project Workflow
 <p align="center">
-  <img src="photos/NEW WORKFLOW.drawio" width="100%">
+  <img src="photos/NEW WORKFLOW.svg" width="100%">
 </p>
 
 

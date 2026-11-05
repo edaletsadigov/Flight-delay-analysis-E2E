@@ -10,3 +10,6 @@ from db import get_engine
 from sqlalchemy.types import NVARCHAR, Float
 import pyarrow.parquet as pq
 import sys
+import matplotlib.pyplot as plt
+from scipy.stats import chi2_contingency, mannwhitneyu
+import seaborn as sns

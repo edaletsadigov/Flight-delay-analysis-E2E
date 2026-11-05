@@ -11,7 +11,7 @@ from datetime import date, time, timedelta
 
 
 # ==================================================
-# SƏHİFƏ PARAMETRLƏRİ
+# PAGE CONFIGURATION
 # ==================================================
 
 st.set_page_config(
@@ -22,17 +22,24 @@ st.set_page_config(
 
 
 # ==================================================
-# MODEL VƏ MƏLUMATLARIN YÜKLƏNMƏSİ
+# LOAD MODEL AND DATA
 # ==================================================
 
 @st.cache_resource
 def load_components():
-    preprocessor = joblib.load("models/flight_preprocessor.joblib")
+
+    preprocessor = joblib.load(
+        "models/flight_preprocessor.joblib"
+    )
 
     model = xgb.XGBClassifier()
-    model.load_model("models/flight_xgboost.json")
+    model.load_model(
+        "models/flight_xgboost.json"
+    )
 
-    threshold = joblib.load("models/optimal_threshold (2).pkl")
+    threshold = joblib.load(
+        "models/optimal_threshold (2).pkl"
+    )
 
     airports = airportsdata.load("IATA")
 
@@ -43,7 +50,7 @@ preprocessor, model, threshold, airports = load_components()
 
 
 # ==================================================
-# SÖZLÜKLƏR VƏ XƏRİTƏLƏŞDİRMƏ
+# DICTIONARIES
 # ==================================================
 
 AIRLINE_NAMES = {
@@ -62,6 +69,7 @@ AIRLINE_NAMES = {
     "MQ": "Envoy Air",
     "YX": "Republic Airways"
 }
+
 
 WMO_WEATHER_MAP = {
     0: "Clear",
@@ -83,21 +91,27 @@ WMO_WEATHER_MAP = {
     95: "Thunderstorm"
 }
 
+
 MONTH_NAMES = [
-    "January", "February", "March", "April", "May", "June",
-    "July", "August", "September", "October", "November", "December"
+    "January", "February", "March", "April",
+    "May", "June", "July", "August",
+    "September", "October", "November", "December"
 ]
 
 
 # ==================================================
-# SEÇİLMİŞ TARİX VƏ SAAT ÜZRƏ HAVA PROQNOZU (Open-Meteo)
+# OPEN-METEO WEATHER FORECAST
 # ==================================================
 
 @st.cache_data(ttl=1800)
 def fetch_scheduled_weather(lat, lon, target_date, target_hour):
+
     try:
+
         date_str = target_date.strftime("%Y-%m-%d")
+
         url = "https://api.open-meteo.com/v1/forecast"
+
         params = {
             "latitude": lat,
             "longitude": lon,
@@ -112,80 +126,137 @@ def fetch_scheduled_weather(lat, lon, target_date, target_hour):
             "end_date": date_str,
             "timezone": "auto"
         }
-        res = requests.get(url, params=params, timeout=15)
-        if res.status_code == 200:
-            data = res.json()
-            hourly = data.get("hourly", {})
-            h_idx = min(max(target_hour, 0), 23)
 
-            wmo_codes = hourly.get("weather_code", [])
-            wmo_code = wmo_codes[h_idx] if len(wmo_codes) > h_idx else 0
-            cond_name = WMO_WEATHER_MAP.get(wmo_code, "Clear")
+        res = requests.get(
+            url,
+            params=params,
+            timeout=15
+        )
 
-            pressures = hourly.get("surface_pressure", [])
-            wind_dirs = hourly.get("wind_direction_10m", [])
-            wind_gusts = hourly.get("wind_gusts_10m", [])
-            snows = hourly.get("snowfall", [])
+        if res.status_code != 200:
 
-            return {
-                "pressure": pressures[h_idx] if len(pressures) > h_idx else np.nan,
-                "wind_dir": wind_dirs[h_idx] if len(wind_dirs) > h_idx else np.nan,
-                "wind_gusts": wind_gusts[h_idx] if len(wind_gusts) > h_idx else np.nan,
-                "snowfall": snows[h_idx] if len(snows) > h_idx else 0.0,
-                "condition": cond_name,
-                "success": True
-            }
-        except Exception as e:
-        print(f"WEATHER API ERROR: {type(e).__name__}: {e}")
+            print(
+                f"WEATHER API STATUS: {res.status_code}"
+            )
+
+            print(
+                f"WEATHER API RESPONSE: {res.text[:500]}"
+            )
+
+            return None
+
+        data = res.json()
+
+        hourly = data.get("hourly", {})
+
+        h_idx = min(max(target_hour, 0), 23)
+
+        wmo_codes = hourly.get("weather_code", [])
+
+        wmo_code = (
+            wmo_codes[h_idx]
+            if len(wmo_codes) > h_idx
+            else 0
+        )
+
+        wmo_code = int(wmo_code) if wmo_code is not None else 0
+
+        cond_name = WMO_WEATHER_MAP.get(
+            wmo_code,
+            "Clear"
+        )
+
+        pressures = hourly.get("surface_pressure", [])
+        wind_dirs = hourly.get("wind_direction_10m", [])
+        wind_gusts = hourly.get("wind_gusts_10m", [])
+        snows = hourly.get("snowfall", [])
+
+        return {
+            "pressure": pressures[h_idx] if len(pressures) > h_idx else np.nan,
+            "wind_dir": wind_dirs[h_idx] if len(wind_dirs) > h_idx else np.nan,
+            "wind_gusts": wind_gusts[h_idx] if len(wind_gusts) > h_idx else np.nan,
+            "snowfall": snows[h_idx] if len(snows) > h_idx else 0.0,
+            "condition": cond_name,
+            "success": True
+        }
+
+    except Exception as e:
+
+        print(
+            f"WEATHER API ERROR: {type(e).__name__}: {e}"
+        )
+
         return None
-
-    print(f"WEATHER API STATUS: {res.status_code}")
-    print(f"WEATHER API RESPONSE: {res.text[:500]}")
-    return None
 
 
 # ==================================================
-# MƏSAFƏ VƏ XƏRİTƏ HESABLAMALARI
+# DISTANCE AND MAP CALCULATIONS
 # ==================================================
 
 def calculate_distance_miles(lat1, lon1, lat2, lon2):
+
     R = 3958.8
+
     dlat = math.radians(lat2 - lat1)
     dlon = math.radians(lon2 - lon1)
+
     a = (
         math.sin(dlat / 2) ** 2
         + math.cos(math.radians(lat1))
         * math.cos(math.radians(lat2))
         * math.sin(dlon / 2) ** 2
     )
-    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+    c = 2 * math.atan2(
+        math.sqrt(a),
+        math.sqrt(1 - a)
+    )
+
     return round(R * c)
 
 
 def calculate_bearing(lat1, lon1, lat2, lon2):
+
     lat1 = math.radians(lat1)
     lat2 = math.radians(lat2)
+
     diff_lon = math.radians(lon2 - lon1)
+
     x = math.sin(diff_lon) * math.cos(lat2)
+
     y = (
         math.cos(lat1) * math.sin(lat2)
         - math.sin(lat1) * math.cos(lat2) * math.cos(diff_lon)
     )
+
     bearing = math.degrees(math.atan2(x, y))
+
     return (bearing + 360) % 360
 
 
 def create_flight_map(origin, destination):
+
     origin_airport = airports.get(origin)
     destination_airport = airports.get(destination)
 
     if not origin_airport or not destination_airport:
         return None
 
-    origin_lat, origin_lon = origin_airport["lat"], origin_airport["lon"]
-    destination_lat, destination_lon = destination_airport["lat"], destination_airport["lon"]
+    origin_lat = origin_airport["lat"]
+    origin_lon = origin_airport["lon"]
 
-    route_data = [{"path": [[origin_lon, origin_lat], [destination_lon, destination_lat]]}]
+    destination_lat = destination_airport["lat"]
+    destination_lon = destination_airport["lon"]
+
+    route_data = [
+        {
+            "path": [
+                [origin_lon, origin_lat],
+                [destination_lon, destination_lat]
+            ]
+        }
+    ]
+
     airport_points = pd.DataFrame({
         "lon": [origin_lon, destination_lon],
         "lat": [origin_lat, destination_lat],
@@ -194,7 +265,13 @@ def create_flight_map(origin, destination):
 
     plane_lon = (origin_lon + destination_lon) / 2
     plane_lat = (origin_lat + destination_lat) / 2
-    plane_angle = calculate_bearing(origin_lat, origin_lon, destination_lat, destination_lon)
+
+    plane_angle = calculate_bearing(
+        origin_lat,
+        origin_lon,
+        destination_lat,
+        destination_lon
+    )
 
     plane_data = pd.DataFrame({
         "lon": [plane_lon],
@@ -251,14 +328,27 @@ def create_flight_map(origin, destination):
 
     center_lat = (origin_lat + destination_lat) / 2
     center_lon = (origin_lon + destination_lon) / 2
+
     lat_diff = destination_lat - origin_lat
     lon_diff = destination_lon - origin_lon
-    dist_deg = math.sqrt(lat_diff ** 2 + lon_diff ** 2)
 
-    zoom = 3 if dist_deg > 50 else (4 if dist_deg > 20 else 5)
+    dist_deg = math.sqrt(
+        lat_diff ** 2 + lon_diff ** 2
+    )
+
+    zoom = (
+        3 if dist_deg > 50
+        else 4 if dist_deg > 20
+        else 5
+    )
 
     return pdk.Deck(
-        layers=[route_layer, points_layer, text_layer, plane_layer],
+        layers=[
+            route_layer,
+            points_layer,
+            text_layer,
+            plane_layer
+        ],
         initial_view_state=pdk.ViewState(
             latitude=center_lat,
             longitude=center_lon,
@@ -271,16 +361,24 @@ def create_flight_map(origin, destination):
 
 
 # ==================================================
-# SHAP MODEL İZAHI
+# SHAP MODEL EXPLANATION
 # ==================================================
 
 def explain_prediction(processed_data):
+
     try:
+
         booster = model.get_booster()
-        contributions = booster.predict(xgb.DMatrix(processed_data), pred_contribs=True)[0]
+
+        contributions = booster.predict(
+            xgb.DMatrix(processed_data),
+            pred_contribs=True
+        )[0]
+
         feature_names = preprocessor.get_feature_names_out()
 
         contributions = contributions[:-1]
+
         if len(feature_names) != len(contributions):
             return None
 
@@ -288,16 +386,29 @@ def explain_prediction(processed_data):
             "Feature": feature_names,
             "Contribution": contributions
         })
-        explanation["Absolute_Contribution"] = explanation["Contribution"].abs()
+
+        explanation["Absolute_Contribution"] = (
+            explanation["Contribution"].abs()
+        )
+
         explanation = (
             explanation
-            .sort_values("Absolute_Contribution", ascending=False)
+            .sort_values(
+                "Absolute_Contribution",
+                ascending=False
+            )
             .head(6)
             .copy()
         )
 
         def readable_name(name):
-            name = name.replace("num__", "").replace("cat__", "")
+
+            name = (
+                name
+                .replace("num__", "")
+                .replace("cat__", "")
+            )
+
             replacements = {
                 "DISTANCE": "Flight Distance",
                 "DEP_HOUR": "Departure Hour",
@@ -315,36 +426,59 @@ def explain_prediction(processed_data):
                 "ORIGIN_AIRPORT": "Origin Airport",
                 "DESTINATION_AIRPORT": "Destination Airport"
             }
+
             for key, value in replacements.items():
+
                 if name == key:
                     return value
+
                 if name.startswith(key + "_"):
                     return f"{value} ({name[len(key) + 1:]})"
+
             return name
 
-        explanation["Feature"] = explanation["Feature"].map(readable_name)
+        explanation["Feature"] = (
+            explanation["Feature"].map(readable_name)
+        )
+
         return explanation
-    except Exception:
+
+    except Exception as e:
+
+        print(f"SHAP ERROR: {e}")
+
         return None
 
 
 # ==================================================
-# WHAT-IF SSENARİ ANALİZİ
+# WHAT-IF SCENARIO ANALYSIS
 # ==================================================
 
 def run_what_if_analysis(base_row, current_prob):
+
     suggestions = []
+
     current_hour = base_row["DEP_HOUR"].values[0]
     current_airline = base_row["AIRLINE"].values[0]
 
     alternative_hours = [7, 10, 14, 20]
+
     for h in alternative_hours:
+
         if abs(h - current_hour) >= 2:
+
             sim_row = base_row.copy()
+
             sim_row["DEP_HOUR"] = h
+
             p_transformed = preprocessor.transform(sim_row)
-            p_prob = model.predict_proba(p_transformed)[0][1]
+
+            p_prob = model.predict_proba(
+                p_transformed
+            )[0][1]
+
             if p_prob < current_prob:
+
                 suggestions.append({
                     "type": "Hour Change",
                     "text": f"Change departure time to {h:02d}:00",
@@ -352,13 +486,25 @@ def run_what_if_analysis(base_row, current_prob):
                     "delta": current_prob - p_prob
                 })
 
-    alt_airlines = [a for a in airline_options if a != current_airline][:5]
+    alt_airlines = [
+        a for a in airline_options
+        if a != current_airline
+    ][:5]
+
     for a in alt_airlines:
+
         sim_row = base_row.copy()
+
         sim_row["AIRLINE"] = a
+
         p_transformed = preprocessor.transform(sim_row)
-        p_prob = model.predict_proba(p_transformed)[0][1]
+
+        p_prob = model.predict_proba(
+            p_transformed
+        )[0][1]
+
         if p_prob < current_prob - 0.05:
+
             suggestions.append({
                 "type": "Airline Switch",
                 "text": f"Switch airline to {AIRLINE_NAMES.get(a, a)} ({a})",
@@ -367,16 +513,23 @@ def run_what_if_analysis(base_row, current_prob):
             })
 
     if suggestions:
-        return sorted(suggestions, key=lambda x: x["delta"], reverse=True)[:3]
+
+        return sorted(
+            suggestions,
+            key=lambda x: x["delta"],
+            reverse=True
+        )[:3]
+
     return []
 
 
 # ==================================================
-# CSS DİZAYN TƏNZİMLƏMƏLƏRİ
+# CSS DESIGN
 # ==================================================
 
 st.markdown("""
 <style>
+
 .stApp {
     background: linear-gradient(135deg, #07172F, #0A1D3B, #08152B);
     color: white;
@@ -566,15 +719,20 @@ div.stButton > button p {
     font-size: 12px;
     padding: 20px 0 5px 0;
 }
+
 </style>
 """, unsafe_allow_html=True)
 
 
 # ==================================================
-# MODEL KATEQORİYALARI
+# MODEL CATEGORIES
 # ==================================================
 
-encoder = preprocessor.named_transformers_["cat"].named_steps["encoder"]
+encoder = (
+    preprocessor
+    .named_transformers_["cat"]
+    .named_steps["encoder"]
+)
 
 airline_options = list(encoder.categories_[0])
 weather_options = list(encoder.categories_[1])
@@ -584,21 +742,36 @@ destination_options = list(encoder.categories_[4])
 
 
 # ==================================================
-# KÖMƏKÇİ FORMATLAMALAR
+# HELPER FUNCTIONS
 # ==================================================
 
 def format_airport(code):
+
     info = airports.get(code)
+
     if info:
+
         name = info.get("name", "")
         city = info.get("city", "")
-        return f"{code} — {name} ({city})" if city else f"{code} — {name}"
+
+        return (
+            f"{code} — {name} ({city})"
+            if city
+            else f"{code} — {name}"
+        )
+
     return code
 
 
 def format_airline(code):
+
     full_name = AIRLINE_NAMES.get(code)
-    return f"{code} — {full_name}" if full_name else code
+
+    return (
+        f"{code} — {full_name}"
+        if full_name
+        else code
+    )
 
 
 # ==================================================
@@ -606,46 +779,78 @@ def format_airline(code):
 # ==================================================
 
 h_col1, h_col2 = st.columns([3, 1])
+
 with h_col1:
+
     st.markdown("""
     <div class="main-title">
         ✈️ Flight Delay <span class="title-highlight">Predictor & Optimizer</span>
     </div>
     """, unsafe_allow_html=True)
 
+
 with h_col2:
+
     st.markdown("""
     <div class="tagline">
         Plan smarter. Travel better.
     </div>
     """, unsafe_allow_html=True)
 
-st.markdown('<div class="header-line"></div>', unsafe_allow_html=True)
+
+st.markdown(
+    '<div class="header-line"></div>',
+    unsafe_allow_html=True
+)
 
 
 # ==================================================
-# ƏSAS EKRAN: SOLDA XƏRİTƏ | SAĞDA PARAMETRLƏR
+# MAIN SCREEN
 # ==================================================
 
-map_col, form_col = st.columns([1.65, 1.35], gap="large")
+map_col, form_col = st.columns(
+    [1.65, 1.35],
+    gap="large"
+)
+
 
 with form_col:
-    st.markdown('<div class="section-title">✈️ Flight Parameters</div>', unsafe_allow_html=True)
-    st.markdown('<div class="section-subtitle">Configure route, schedule & date</div>', unsafe_allow_html=True)
+
+    st.markdown(
+        '<div class="section-title">✈️ Flight Parameters</div>',
+        unsafe_allow_html=True
+    )
+
+    st.markdown(
+        '<div class="section-subtitle">Configure route, schedule & date</div>',
+        unsafe_allow_html=True
+    )
 
     col_orig, col_dest = st.columns(2)
+
     with col_orig:
+
         origin = st.selectbox(
             "🛫 Departure (Origin)",
             origin_options,
-            index=origin_options.index("JFK") if "JFK" in origin_options else 0,
+            index=(
+                origin_options.index("JFK")
+                if "JFK" in origin_options
+                else 0
+            ),
             format_func=format_airport
         )
+
     with col_dest:
+
         destination = st.selectbox(
             "🛬 Arrival (Destination)",
             destination_options,
-            index=destination_options.index("LAX") if "LAX" in destination_options else 0,
+            index=(
+                destination_options.index("LAX")
+                if "LAX" in destination_options
+                else 0
+            ),
             format_func=format_airport
         )
 
@@ -653,18 +858,33 @@ with form_col:
     dest_data = airports.get(destination)
 
     if origin != destination and origin_data and dest_data:
+
         flight_distance = calculate_distance_miles(
-            origin_data["lat"], origin_data["lon"],
-            dest_data["lat"], dest_data["lon"]
+            origin_data["lat"],
+            origin_data["lon"],
+            dest_data["lat"],
+            dest_data["lon"]
         )
+
         st.markdown(
-            f'<div class="distance-badge">📏 <b>Calculated Distance:</b> {flight_distance:,} miles</div>',
+            f"""
+            <div class="distance-badge">
+                📏 <b>Calculated Distance:</b> {flight_distance:,} miles
+            </div>
+            """,
             unsafe_allow_html=True
         )
+
     else:
+
         flight_distance = 0
+
         st.markdown(
-            '<div class="distance-badge" style="color:#FFA0A0;">Select different airports</div>',
+            """
+            <div class="distance-badge" style="color:#FFA0A0;">
+                Select different airports
+            </div>
+            """,
             unsafe_allow_html=True
         )
 
@@ -674,12 +894,14 @@ with form_col:
         format_func=format_airline
     )
 
-    # Dəqiq Tarix və Saat Seçimi (Open-Meteo Forecast 16 günə qədər dəstəkləyir)
     col_date, col_time = st.columns(2)
+
     today = date.today()
+
     max_forecast_date = today + timedelta(days=15)
 
     with col_date:
+
         flight_date = st.date_input(
             "Scheduled Flight Date",
             value=today,
@@ -688,6 +910,7 @@ with form_col:
         )
 
     with col_time:
+
         dep_time_val = st.time_input(
             "Scheduled Departure Time",
             value=time(14, 0),
@@ -696,14 +919,20 @@ with form_col:
 
     departure_hour = dep_time_val.hour
 
-    # Tarixdən avtomatik Ay və Həftənin gününün çıxarılması
     month = MONTH_NAMES[flight_date.month - 1]
-    day_of_week = flight_date.isoweekday()  # 1: Bazar ertəsi, 7: Bazar
+
+    day_of_week = flight_date.isoweekday()
+
     day_name = flight_date.strftime("%A")
 
-    # Seçilmiş gün və saat üçün Open-Meteo proqnozunun çəkilməsi
+    # ----------------------------------------------
+    # WEATHER FORECAST
+    # ----------------------------------------------
+
     forecast_weather = None
+
     if origin_data:
+
         forecast_weather = fetch_scheduled_weather(
             origin_data["lat"],
             origin_data["lon"],
@@ -712,30 +941,45 @@ with form_col:
         )
 
     current_weather_cond = "Clear"
+
     if forecast_weather and forecast_weather.get("success"):
+
         cand_cond = forecast_weather["condition"]
+
         if cand_cond in weather_options:
+
             current_weather_cond = cand_cond
+
         elif "Clear" in weather_options:
+
             current_weather_cond = "Clear"
+
         else:
+
             current_weather_cond = weather_options[0]
 
         st.markdown(
             f"""
             <div class="weather-forecast-badge">
-                🌦️ <b>Forecast ({flight_date.strftime('%b %d')} at {departure_hour:02d}:00):</b> {current_weather_cond} &nbsp;|&nbsp;
-                Wind: {forecast_weather.get('wind_dir', 0):.0f}° &nbsp;|&nbsp;
+                🌦️ <b>Forecast ({flight_date.strftime('%b %d')} at {departure_hour:02d}:00):</b>
+                {current_weather_cond}
+                &nbsp;|&nbsp;
+                Wind: {forecast_weather.get('wind_dir', 0):.0f}°
+                &nbsp;|&nbsp;
                 Gusts: {forecast_weather.get('wind_gusts', 0):.1f} km/h
             </div>
             """,
             unsafe_allow_html=True
         )
+
     else:
+
         st.markdown(
             f"""
             <div class="weather-forecast-badge" style="color:#C6D8EE;">
-                ℹ️ <b>Flight Schedule:</b> {day_name}, {month} {flight_date.day} (Historical/Average baseline used)
+                ℹ️ <b>Flight Schedule:</b>
+                {day_name}, {month} {flight_date.day}
+                (Historical/Average baseline used)
             </div>
             """,
             unsafe_allow_html=True
@@ -747,34 +991,86 @@ with form_col:
     )
 
 
-with map_col:
-    st.markdown('<div class="section-title">🌎 Route Overview</div>', unsafe_allow_html=True)
-    st.markdown('<div class="section-subtitle">Real-time path and airport alignment</div>', unsafe_allow_html=True)
+# ==================================================
+# MAP
+# ==================================================
 
-    flight_map = create_flight_map(origin, destination)
+with map_col:
+
+    st.markdown(
+        '<div class="section-title">🌎 Route Overview</div>',
+        unsafe_allow_html=True
+    )
+
+    st.markdown(
+        '<div class="section-subtitle">Real-time path and airport alignment</div>',
+        unsafe_allow_html=True
+    )
+
+    flight_map = create_flight_map(
+        origin,
+        destination
+    )
+
     if flight_map:
-        st.pydeck_chart(flight_map, use_container_width=True, height=620)
+
+        st.pydeck_chart(
+            flight_map,
+            use_container_width=True,
+            height=620
+        )
+
     else:
-        st.warning("Airport coordinates unavailable for route mapping.")
+
+        st.warning(
+            "Airport coordinates unavailable for route mapping."
+        )
 
 
 # ==================================================
-# MODEL TƏXMİNİ (INFERENCE)
+# MODEL PREDICTION
 # ==================================================
 
 if predict_btn:
+
     if origin == destination:
-        st.error("Origin and Destination airports must be different.")
+
+        st.error(
+            "Origin and Destination airports must be different."
+        )
+
     else:
+
         is_weekend = int(day_of_week in [6, 7])
+
         is_long_distance = int(flight_distance > 1500)
 
-        p_pressure = forecast_weather["pressure"] if forecast_weather else np.nan
-        p_wind_dir = forecast_weather["wind_dir"] if forecast_weather else np.nan
-        p_wind_gusts = forecast_weather["wind_gusts"] if forecast_weather else np.nan
-        p_snowfall = forecast_weather["snowfall"] if forecast_weather else np.nan
+        p_pressure = (
+            forecast_weather["pressure"]
+            if forecast_weather
+            else np.nan
+        )
+
+        p_wind_dir = (
+            forecast_weather["wind_dir"]
+            if forecast_weather
+            else np.nan
+        )
+
+        p_wind_gusts = (
+            forecast_weather["wind_gusts"]
+            if forecast_weather
+            else np.nan
+        )
+
+        p_snowfall = (
+            forecast_weather["snowfall"]
+            if forecast_weather
+            else np.nan
+        )
 
         input_df = pd.DataFrame([{
+
             "DISTANCE": flight_distance,
             "DEP_HOUR": departure_hour,
             "WEATHER_SURFACE_PRESSURE": p_pressure,
@@ -790,14 +1086,31 @@ if predict_btn:
             "PREV_FLIGHT_IS_DELAYED": 0,
             "ORIGIN_AIRPORT": origin,
             "DESTINATION_AIRPORT": destination
+
         }])
 
         try:
-            processed_data = preprocessor.transform(input_df)
-            prob = float(model.predict_proba(processed_data)[0][1])
+
+            processed_data = preprocessor.transform(
+                input_df
+            )
+
+            prob = float(
+                model.predict_proba(
+                    processed_data
+                )[0][1]
+            )
+
             is_delayed = int(prob >= threshold)
-            shap_df = explain_prediction(processed_data)
-            what_if_list = run_what_if_analysis(input_df, prob)
+
+            shap_df = explain_prediction(
+                processed_data
+            )
+
+            what_if_list = run_what_if_analysis(
+                input_df,
+                prob
+            )
 
             st.session_state["res_prob"] = prob
             st.session_state["res_pred"] = is_delayed
@@ -806,121 +1119,271 @@ if predict_btn:
             st.session_state["res_active"] = True
 
         except Exception as e:
-            st.error(f"Prediction Pipeline Error: {e}")
+
+            st.error(
+                f"Prediction Pipeline Error: {e}"
+            )
 
 
 # ==================================================
-# NƏTİCƏLƏRİN ƏKS OLUNMASI
+# DISPLAY RESULTS
 # ==================================================
 
 if st.session_state.get("res_active", False):
+
     prob = st.session_state["res_prob"]
+
     pred = st.session_state["res_pred"]
+
     shap_df = st.session_state["res_shap"]
+
     what_if_list = st.session_state["res_whatif"]
 
-    st.markdown('<div class="result-panel">', unsafe_allow_html=True)
-    st.markdown('<div class="section-title">📊 Prediction & Risk Diagnosis</div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="result-panel">',
+        unsafe_allow_html=True
+    )
 
-    r_col1, r_col2, r_col3 = st.columns([1, 1, 1.5], gap="medium")
+    st.markdown(
+        '<div class="section-title">📊 Prediction & Risk Diagnosis</div>',
+        unsafe_allow_html=True
+    )
+
+    r_col1, r_col2, r_col3 = st.columns(
+        [1, 1, 1.5],
+        gap="medium"
+    )
 
     with r_col1:
+
         st.markdown(
             f"""
             <div class="result-box">
-                <div class="result-label">Estimated Delay Probability</div>
-                <div class="result-value">{prob:.1%}</div>
+                <div class="result-label">
+                    Estimated Delay Probability
+                </div>
+                <div class="result-value">
+                    {prob:.1%}
+                </div>
             </div>
             """,
             unsafe_allow_html=True
         )
 
     with r_col2:
+
         st.markdown(
             f"""
             <div class="result-box">
-                <div class="result-label">Decision Threshold</div>
-                <div class="result-value">{threshold:.0%}</div>
+                <div class="result-label">
+                    Decision Threshold
+                </div>
+                <div class="result-value">
+                    {threshold:.0%}
+                </div>
             </div>
             """,
             unsafe_allow_html=True
         )
 
     with r_col3:
+
         if pred == 1:
+
             status_markup = """
-            <div class="status-danger">⚠️ Flight is Likely to be Delayed</div>
-            <div class="status-description">The probability reaches or exceeds the model's risk threshold. Proactive schedule buffering recommended.</div>
+            <div class="status-danger">
+                ⚠️ Flight is Likely to be Delayed
+            </div>
+            <div class="status-description">
+                The probability reaches or exceeds the model's risk threshold.
+                Proactive schedule buffering recommended.
+            </div>
             """
+
         else:
+
             status_markup = """
-            <div class="status-safe">✓ Flight is Expected On-Time</div>
-            <div class="status-description">The risk is below the critical threshold under current flight and weather conditions.</div>
+            <div class="status-safe">
+                ✓ Flight is Expected On-Time
+            </div>
+            <div class="status-description">
+                The risk is below the critical threshold under current
+                flight and weather conditions.
+            </div>
             """
-        st.markdown(f'<div class="status-box">{status_markup}</div>', unsafe_allow_html=True)
+
+        st.markdown(
+            f'<div class="status-box">{status_markup}</div>',
+            unsafe_allow_html=True
+        )
 
     st.write("")
+
     st.progress(prob)
 
-    exp_col, whatif_col = st.columns([1.5, 1.2], gap="large")
+    exp_col, whatif_col = st.columns(
+        [1.5, 1.2],
+        gap="large"
+    )
+
+    # ----------------------------------------------
+    # SHAP EXPLANATION
+    # ----------------------------------------------
 
     with exp_col:
-        st.markdown("#### 🔍 Key Risk Factors (Feature Impact)")
+
+        st.markdown(
+            "#### 🔍 Key Risk Factors (Feature Impact)"
+        )
+
         if shap_df is not None and not shap_df.empty:
+
             for _, row in shap_df.iterrows():
+
                 val = row["Contribution"]
+
                 is_pos = val > 0
-                color = "#FF5C6D" if is_pos else "#2ED573"
-                badge_bg = "rgba(255, 92, 109, 0.15)" if is_pos else "rgba(46, 213, 115, 0.15)"
-                label_text = "Increases delay risk" if is_pos else "Reduces delay risk"
-                bar_pct = min(max(int(abs(val) * 120), 10), 100)
+
+                color = (
+                    "#FF5C6D"
+                    if is_pos
+                    else "#2ED573"
+                )
+
+                badge_bg = (
+                    "rgba(255, 92, 109, 0.15)"
+                    if is_pos
+                    else "rgba(46, 213, 115, 0.15)"
+                )
+
+                label_text = (
+                    "Increases delay risk"
+                    if is_pos
+                    else "Reduces delay risk"
+                )
+
+                bar_pct = min(
+                    max(int(abs(val) * 120), 10),
+                    100
+                )
 
                 st.markdown(
                     f"""
-                    <div style="background:#0D1E37; border:1px solid #1F3A5E; border-radius:8px; padding:10px 12px; margin-bottom:8px;">
-                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-                            <span style="font-weight:600; font-size:13px; color:#F4F7FF;">{row['Feature']}</span>
-                            <span style="background:{badge_bg}; color:{color}; border:1px solid {color}40; font-size:11px; padding:2px 8px; border-radius:12px; font-weight:600;">
+                    <div style="
+                        background:#0D1E37;
+                        border:1px solid #1F3A5E;
+                        border-radius:8px;
+                        padding:10px 12px;
+                        margin-bottom:8px;
+                    ">
+                        <div style="
+                            display:flex;
+                            justify-content:space-between;
+                            align-items:center;
+                            margin-bottom:6px;
+                        ">
+                            <span style="
+                                font-weight:600;
+                                font-size:13px;
+                                color:#F4F7FF;
+                            ">
+                                {row['Feature']}
+                            </span>
+
+                            <span style="
+                                background:{badge_bg};
+                                color:{color};
+                                border:1px solid {color}40;
+                                font-size:11px;
+                                padding:2px 8px;
+                                border-radius:12px;
+                                font-weight:600;
+                            ">
                                 {label_text} ({val:+.2f})
                             </span>
                         </div>
-                        <div style="background-color:#172E4D; border-radius:4px; height:6px; width:100%; overflow:hidden;">
-                            <div style="background-color:{color}; width:{bar_pct}%; height:6px; border-radius:4px;"></div>
+
+                        <div style="
+                            background-color:#172E4D;
+                            border-radius:4px;
+                            height:6px;
+                            width:100%;
+                            overflow:hidden;
+                        ">
+                            <div style="
+                                background-color:{color};
+                                width:{bar_pct}%;
+                                height:6px;
+                                border-radius:4px;
+                            "></div>
                         </div>
                     </div>
                     """,
                     unsafe_allow_html=True
                 )
-            st.caption("🔴 Red: Factors increasing delay risk | 🟢 Green: Factors mitigating delay risk")
+
+            st.caption(
+                "🔴 Red: Factors increasing delay risk | "
+                "🟢 Green: Factors mitigating delay risk"
+            )
+
         else:
-            st.info("Feature contributions could not be calculated.")
+
+            st.info(
+                "Feature contributions could not be calculated."
+            )
+
+    # ----------------------------------------------
+    # WHAT-IF OPTIMIZATION
+    # ----------------------------------------------
 
     with whatif_col:
-        st.markdown("#### 💡 What-If Optimization Engine")
+
+        st.markdown(
+            "#### 💡 What-If Optimization Engine"
+        )
+
         if what_if_list:
-            st.write("Alternative options to reduce your delay risk:")
+
+            st.write(
+                "Alternative options to reduce your delay risk:"
+            )
+
             for item in what_if_list:
+
                 st.markdown(
                     f"""
                     <div class="whatif-card">
-                        <b>{item['type']}:</b> {item['text']}<br>
-                        New Risk: <b>{item['new_prob']:.1%}</b>
-                        <span style="color:#4DD3A7;">(↓ {item['delta']:.1%} lower)</span>
+                        <b>{item['type']}:</b>
+                        {item['text']}
+                        <br>
+                        New Risk:
+                        <b>{item['new_prob']:.1%}</b>
+                        <span style="color:#4DD3A7;">
+                            (↓ {item['delta']:.1%} lower)
+                        </span>
                     </div>
                     """,
                     unsafe_allow_html=True
                 )
+
         else:
+
             st.markdown(
                 """
-                <div class="whatif-card" style="border-left-color: #2ED573;">
-                    Current flight selection already has an optimal schedule profile. No better alternative detected.
+                <div class="whatif-card"
+                     style="border-left-color: #2ED573;">
+                    Current flight selection already has an optimal
+                    schedule profile. No better alternative detected.
                 </div>
                 """,
                 unsafe_allow_html=True
             )
 
-    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown(
+        '</div>',
+        unsafe_allow_html=True
+    )
 
 
 # ==================================================

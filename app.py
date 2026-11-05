@@ -112,7 +112,7 @@ def fetch_scheduled_weather(lat, lon, target_date, target_hour):
             "end_date": date_str,
             "timezone": "auto"
         }
-        res = requests.get(url, params=params, timeout=4)
+        res = requests.get(url, params=params, timeout=15)
         if res.status_code == 200:
             data = res.json()
             hourly = data.get("hourly", {})
@@ -135,8 +135,12 @@ def fetch_scheduled_weather(lat, lon, target_date, target_hour):
                 "condition": cond_name,
                 "success": True
             }
-    except Exception:
-        pass
+        except Exception as e:
+        print(f"WEATHER API ERROR: {type(e).__name__}: {e}")
+        return None
+
+    print(f"WEATHER API STATUS: {res.status_code}")
+    print(f"WEATHER API RESPONSE: {res.text[:500]}")
     return None
 
 

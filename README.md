@@ -22,8 +22,16 @@ Layihə məlumatların təmizlənməsindən və SQL Server-də saxlanılmasında
 - Analitik nəticələri vizuallaşdırmaq və Power BI vasitəsilə təqdim etmək.
 
 📁 Layihənin strukturu
+## Project Workflow
 
-<img width="2528" height="1696" alt="data workflow (2)" src="https://github.com/user-attachments/assets/31c961b0-6cbf-4deb-91f7-9badbd41127e" />
+The following diagram illustrates the end-to-end workflow
+of the Flight Delay Analysis project.
+
+<p align="center">
+  <img src="photos/Məlumat Analizi İş Axını Animasiya Storyboardu.gif" width="850">
+</p>
+
+
 
 
 

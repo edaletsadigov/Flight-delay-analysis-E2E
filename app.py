@@ -11,7 +11,7 @@ from datetime import date, time, timedelta
 
 
 # ==================================================
-# SƏHİFƏ PARAMETRLƏRİ
+# КОНФИГУРАЦИЯ СТРАНИЦЫ
 # ==================================================
 
 st.set_page_config(
@@ -22,7 +22,7 @@ st.set_page_config(
 
 
 # ==================================================
-# MODEL VƏ MƏLUMATLARIN YÜKLƏNMƏSİ
+# ЗАГРУЗКА МОДЕЛИ И КОМПОНЕНТОВ
 # ==================================================
 
 @st.cache_resource
@@ -43,7 +43,7 @@ preprocessor, model, threshold, airports = load_components()
 
 
 # ==================================================
-# SÖZLÜKLƏR VƏ XƏRİTƏLƏŞDİRMƏ
+# СЛОВАРИ И СООТВЕТСТВИЯ
 # ==================================================
 
 AIRLINE_NAMES = {
@@ -90,13 +90,12 @@ MONTH_NAMES = [
 
 
 # ==================================================
-# SEÇİLMİŞ TARİX VƏ SAAT ÜZRƏ HAVA PROQNOZU (Open-Meteo)
+# ПРОГНОЗ ПОГОДЫ НА ВЫБРАННУЮ ДАТУ И ВРЕМЯ (Open-Meteo)
 # ==================================================
 
 @st.cache_data(ttl=1800)
 def fetch_scheduled_weather(lat, lon, target_date, target_hour):
     try:
-        date_str = target_date.strftime("%Y-%m-%d")
         url = "https://api.open-meteo.com/v1/forecast"
         params = {
             "latitude": lat,
@@ -108,15 +107,27 @@ def fetch_scheduled_weather(lat, lon, target_date, target_hour):
                 "weather_code",
                 "snowfall"
             ],
-            "start_date": date_str,
-            "end_date": date_str,
+            "forecast_days": 16,
             "timezone": "auto"
         }
-        res = requests.get(url, params=params, timeout=4)
+        res = requests.get(url, params=params, timeout=5)
         if res.status_code == 200:
             data = res.json()
             hourly = data.get("hourly", {})
-            h_idx = min(max(target_hour, 0), 23)
+            times = hourly.get("time", [])
+
+            # Формат времени: "YYYY-MM-DDTHH:00"
+            target_str = f"{target_date.strftime('%Y-%m-%d')}T{target_hour:02d}:00"
+
+            if target_str in times:
+                h_idx = times.index(target_str)
+            else:
+                day_prefix = target_date.strftime('%Y-%m-%d')
+                day_indices = [i for i, t in enumerate(times) if t.startswith(day_prefix)]
+                if day_indices:
+                    h_idx = day_indices[min(target_hour, len(day_indices) - 1)]
+                else:
+                    return None
 
             wmo_codes = hourly.get("weather_code", [])
             wmo_code = wmo_codes[h_idx] if len(wmo_codes) > h_idx else 0
@@ -141,7 +152,7 @@ def fetch_scheduled_weather(lat, lon, target_date, target_hour):
 
 
 # ==================================================
-# MƏSAFƏ VƏ XƏRİTƏ HESABLAMALARI
+# РАСЧЁТ РАССТОЯНИЯ И КАРТЫ
 # ==================================================
 
 def calculate_distance_miles(lat1, lon1, lat2, lon2):
@@ -267,7 +278,7 @@ def create_flight_map(origin, destination):
 
 
 # ==================================================
-# SHAP MODEL İZAHI
+# SHAP ИНТЕРПРЕТАЦИЯ МОДЕЛИ
 # ==================================================
 
 def explain_prediction(processed_data):
@@ -325,7 +336,7 @@ def explain_prediction(processed_data):
 
 
 # ==================================================
-# WHAT-IF SSENARİ ANALİZİ
+# ДВИЖОК СЦЕНАРИЕВ WHAT-IF
 # ==================================================
 
 def run_what_if_analysis(base_row, current_prob):
@@ -368,7 +379,7 @@ def run_what_if_analysis(base_row, current_prob):
 
 
 # ==================================================
-# CSS DİZAYN TƏNZİMLƏMƏLƏRİ
+# CSS СТИЛИЗАЦИЯ
 # ==================================================
 
 st.markdown("""
@@ -567,7 +578,7 @@ div.stButton > button p {
 
 
 # ==================================================
-# MODEL KATEQORİYALARI
+# КАТЕГОРИИ МОДЕЛИ
 # ==================================================
 
 encoder = preprocessor.named_transformers_["cat"].named_steps["encoder"]
@@ -580,7 +591,7 @@ destination_options = list(encoder.categories_[4])
 
 
 # ==================================================
-# KÖMƏKÇİ FORMATLAMALAR
+# ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
 # ==================================================
 
 def format_airport(code):
@@ -598,7 +609,7 @@ def format_airline(code):
 
 
 # ==================================================
-# HEADER
+# ШАПКА
 # ==================================================
 
 h_col1, h_col2 = st.columns([3, 1])
@@ -620,7 +631,7 @@ st.markdown('<div class="header-line"></div>', unsafe_allow_html=True)
 
 
 # ==================================================
-# ƏSAS EKRAN: SOLDA XƏRİTƏ | SAĞDA PARAMETRLƏR
+# ОСНОВНОЙ ЭКРАН
 # ==================================================
 
 map_col, form_col = st.columns([1.65, 1.35], gap="large")
@@ -670,7 +681,6 @@ with form_col:
         format_func=format_airline
     )
 
-    # Dəqiq Tarix və Saat Seçimi (Open-Meteo Forecast 16 günə qədər dəstəkləyir)
     col_date, col_time = st.columns(2)
     today = date.today()
     max_forecast_date = today + timedelta(days=15)
@@ -692,12 +702,10 @@ with form_col:
 
     departure_hour = dep_time_val.hour
 
-    # Tarixdən avtomatik Ay və Həftənin gününün çıxarılması
     month = MONTH_NAMES[flight_date.month - 1]
-    day_of_week = flight_date.isoweekday()  # 1: Bazar ertəsi, 7: Bazar
+    day_of_week = flight_date.isoweekday()
     day_name = flight_date.strftime("%A")
 
-    # Seçilmiş gün və saat üçün Open-Meteo proqnozunun çəkilməsi
     forecast_weather = None
     if origin_data:
         forecast_weather = fetch_scheduled_weather(
@@ -755,7 +763,7 @@ with map_col:
 
 
 # ==================================================
-# MODEL TƏXMİNİ (INFERENCE)
+# ПРОГНОЗИРОВАНИЕ
 # ==================================================
 
 if predict_btn:
@@ -806,7 +814,7 @@ if predict_btn:
 
 
 # ==================================================
-# NƏTİCƏLƏRİN ƏKS OLUNMASI
+# ВЫВОД РЕЗУЛЬТАТОВ
 # ==================================================
 
 if st.session_state.get("res_active", False):
@@ -920,7 +928,7 @@ if st.session_state.get("res_active", False):
 
 
 # ==================================================
-# FOOTER
+# ПОДВАЛ
 # ==================================================
 
 st.markdown("""

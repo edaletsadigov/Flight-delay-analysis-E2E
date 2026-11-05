@@ -24,12 +24,7 @@ Layihə məlumatların təmizlənməsindən və SQL Server-də saxlanılmasında
 📁 Layihənin strukturu
 ## Project Workflow
 
-The following diagram illustrates the end-to-end workflow
-of the Flight Delay Analysis project.
 
-<p align="center">
-  <img src="photos/Məlumat Analizi İş Axını Animasiya Storyboardu.gif" width="850">
-</p>
 
 
 

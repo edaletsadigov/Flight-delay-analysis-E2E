@@ -11,7 +11,7 @@ from datetime import date, time, timedelta
 
 
 # ==================================================
-# КОНФИГУРАЦИЯ СТРАНИЦЫ
+# SƏHİFƏ PARAMETRLƏRİ
 # ==================================================
 
 st.set_page_config(
@@ -22,7 +22,7 @@ st.set_page_config(
 
 
 # ==================================================
-# ЗАГРУЗКА МОДЕЛИ И КОМПОНЕНТОВ
+# MODEL VƏ MƏLUMATLARIN YÜKLƏNMƏSİ
 # ==================================================
 
 @st.cache_resource
@@ -43,7 +43,7 @@ preprocessor, model, threshold, airports = load_components()
 
 
 # ==================================================
-# СЛОВАРИ И СООТВЕТСТВИЯ
+# SÖZLÜKLƏR VƏ XƏRİTƏLƏŞDİRMƏ
 # ==================================================
 
 AIRLINE_NAMES = {
@@ -90,68 +90,58 @@ MONTH_NAMES = [
 
 
 # ==================================================
-# НАДЁЖНЫЙ ЗАПРОС ПОГОДЫ (Open-Meteo)
+# SEÇİLMİŞ TARİX VƏ SAAT ÜZRƏ HAVA PROQNOZU (Open-Meteo)
 # ==================================================
 
-@st.cache_data(ttl=900)
+@st.cache_data(ttl=1800)
 def fetch_scheduled_weather(lat, lon, target_date, target_hour):
     try:
+        date_str = target_date.strftime("%Y-%m-%d")
         url = "https://api.open-meteo.com/v1/forecast"
         params = {
-            "latitude": float(lat),
-            "longitude": float(lon),
-            "hourly": "surface_pressure,wind_direction_10m,wind_gusts_10m,weather_code,snowfall",
-            "forecast_days": 16
+            "latitude": lat,
+            "longitude": lon,
+            "hourly": [
+                "surface_pressure",
+                "wind_direction_10m",
+                "wind_gusts_10m",
+                "weather_code",
+                "snowfall"
+            ],
+            "start_date": date_str,
+            "end_date": date_str,
+            "timezone": "auto"
         }
-        res = requests.get(url, params=params, timeout=6)
+        res = requests.get(url, params=params, timeout=4)
         if res.status_code == 200:
             data = res.json()
             hourly = data.get("hourly", {})
-            times = hourly.get("time", [])
+            h_idx = min(max(target_hour, 0), 23)
 
-            if not times:
-                return None
-
-            date_str = target_date.strftime("%Y-%m-%d")
-            matching_indices = [i for i, t in enumerate(times) if t.startswith(date_str)]
-
-            if matching_indices:
-                selected_idx = matching_indices[min(target_hour, len(matching_indices) - 1)]
-            else:
-                # Если дата слегка выходит за рамки UTC, берём ближайший доступный час
-                selected_idx = min(target_hour, len(times) - 1)
-
-            wmo_code = hourly.get("weather_code", [0])[selected_idx]
+            wmo_codes = hourly.get("weather_code", [])
+            wmo_code = wmo_codes[h_idx] if len(wmo_codes) > h_idx else 0
             cond_name = WMO_WEATHER_MAP.get(wmo_code, "Clear")
 
-            pressure_val = hourly.get("surface_pressure", [1013.25])[selected_idx]
-            wind_dir_val = hourly.get("wind_direction_10m", [180.0])[selected_idx]
-            wind_gusts_val = hourly.get("wind_gusts_10m", [12.0])[selected_idx]
-            snowfall_val = hourly.get("snowfall", [0.0])[selected_idx]
+            pressures = hourly.get("surface_pressure", [])
+            wind_dirs = hourly.get("wind_direction_10m", [])
+            wind_gusts = hourly.get("wind_gusts_10m", [])
+            snows = hourly.get("snowfall", [])
 
             return {
-                "pressure": float(pressure_val) if pressure_val is not None else 1013.25,
-                "wind_dir": float(wind_dir_val) if wind_dir_val is not None else 180.0,
-                "wind_gusts": float(wind_gusts_val) if wind_gusts_val is not None else 12.0,
-                "snowfall": float(snowfall_val) if snowfall_val is not None else 0.0,
+                "pressure": pressures[h_idx] if len(pressures) > h_idx else np.nan,
+                "wind_dir": wind_dirs[h_idx] if len(wind_dirs) > h_idx else np.nan,
+                "wind_gusts": wind_gusts[h_idx] if len(wind_gusts) > h_idx else np.nan,
+                "snowfall": snows[h_idx] if len(snows) > h_idx else 0.0,
                 "condition": cond_name,
                 "success": True
             }
-    except Exception as e:
-        # Резервный расчет на случай сетевого сбоя сервера Render
-        return {
-            "pressure": 1013.25,
-            "wind_dir": 190.0,
-            "wind_gusts": 15.0,
-            "snowfall": 0.0,
-            "condition": "Mainly Clear",
-            "success": True
-        }
+    except Exception:
+        pass
     return None
 
 
 # ==================================================
-# РАСЧЁТ РАССТОЯНИЯ И КАРТЫ
+# MƏSAFƏ VƏ XƏRİTƏ HESABLAMALARI
 # ==================================================
 
 def calculate_distance_miles(lat1, lon1, lat2, lon2):
@@ -277,7 +267,7 @@ def create_flight_map(origin, destination):
 
 
 # ==================================================
-# SHAP ИНТЕРПРЕТАЦИЯ
+# SHAP MODEL İZAHI
 # ==================================================
 
 def explain_prediction(processed_data):
@@ -335,7 +325,7 @@ def explain_prediction(processed_data):
 
 
 # ==================================================
-# WHAT-IF ОПТИМИЗАТОР
+# WHAT-IF SSENARİ ANALİZİ
 # ==================================================
 
 def run_what_if_analysis(base_row, current_prob):
@@ -378,7 +368,7 @@ def run_what_if_analysis(base_row, current_prob):
 
 
 # ==================================================
-# CSS ДИЗАЙН
+# CSS DİZAYN TƏNZİMLƏMƏLƏRİ
 # ==================================================
 
 st.markdown("""
@@ -473,10 +463,10 @@ div[data-testid="stDeckGlJsonChart"] {
     background: #0E2A47;
     border: 1px solid #3672AC;
     border-radius: 8px;
-    padding: 10px 14px;
-    font-size: 13px;
+    padding: 9px 12px;
+    font-size: 12px;
     color: #9CD0FF;
-    margin-top: 8px;
+    margin-top: 6px;
     margin-bottom: 14px;
 }
 
@@ -577,7 +567,7 @@ div.stButton > button p {
 
 
 # ==================================================
-# КАТЕГОРИИ
+# MODEL KATEQORİYALARI
 # ==================================================
 
 encoder = preprocessor.named_transformers_["cat"].named_steps["encoder"]
@@ -590,7 +580,7 @@ destination_options = list(encoder.categories_[4])
 
 
 # ==================================================
-# ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+# KÖMƏKÇİ FORMATLAMALAR
 # ==================================================
 
 def format_airport(code):
@@ -608,7 +598,7 @@ def format_airline(code):
 
 
 # ==================================================
-# ШАПКА
+# HEADER
 # ==================================================
 
 h_col1, h_col2 = st.columns([3, 1])
@@ -630,7 +620,7 @@ st.markdown('<div class="header-line"></div>', unsafe_allow_html=True)
 
 
 # ==================================================
-# ОСНОВНОЙ ЭКРАН
+# ƏSAS EKRAN: SOLDA XƏRİTƏ | SAĞDA PARAMETRLƏR
 # ==================================================
 
 map_col, form_col = st.columns([1.65, 1.35], gap="large")
@@ -680,6 +670,7 @@ with form_col:
         format_func=format_airline
     )
 
+    # Dəqiq Tarix və Saat Seçimi (Open-Meteo Forecast 16 günə qədər dəstəkləyir)
     col_date, col_time = st.columns(2)
     today = date.today()
     max_forecast_date = today + timedelta(days=15)
@@ -688,7 +679,7 @@ with form_col:
         flight_date = st.date_input(
             "Scheduled Flight Date",
             value=today,
-            min_value=today - timedelta(days=2),
+            min_value=today - timedelta(days=5),
             max_value=max_forecast_date
         )
 
@@ -700,9 +691,13 @@ with form_col:
         )
 
     departure_hour = dep_time_val.hour
-    month = MONTH_NAMES[flight_date.month - 1]
-    day_of_week = flight_date.isoweekday()
 
+    # Tarixdən avtomatik Ay və Həftənin gününün çıxarılması
+    month = MONTH_NAMES[flight_date.month - 1]
+    day_of_week = flight_date.isoweekday()  # 1: Bazar ertəsi, 7: Bazar
+    day_name = flight_date.strftime("%A")
+
+    # Seçilmiş gün və saat üçün Open-Meteo proqnozunun çəkilməsi
     forecast_weather = None
     if origin_data:
         forecast_weather = fetch_scheduled_weather(
@@ -726,8 +721,17 @@ with form_col:
             f"""
             <div class="weather-forecast-badge">
                 🌦️ <b>Forecast ({flight_date.strftime('%b %d')} at {departure_hour:02d}:00):</b> {current_weather_cond} &nbsp;|&nbsp;
-                Wind: {forecast_weather.get('wind_dir', 180):.0f}° &nbsp;|&nbsp;
-                Gusts: {forecast_weather.get('wind_gusts', 12):.1f} km/h
+                Wind: {forecast_weather.get('wind_dir', 0):.0f}° &nbsp;|&nbsp;
+                Gusts: {forecast_weather.get('wind_gusts', 0):.1f} km/h
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+    else:
+        st.markdown(
+            f"""
+            <div class="weather-forecast-badge" style="color:#C6D8EE;">
+                ℹ️ <b>Flight Schedule:</b> {day_name}, {month} {flight_date.day} (Historical/Average baseline used)
             </div>
             """,
             unsafe_allow_html=True
@@ -751,7 +755,7 @@ with map_col:
 
 
 # ==================================================
-# ПРОГНОЗИРОВАНИЕ
+# MODEL TƏXMİNİ (INFERENCE)
 # ==================================================
 
 if predict_btn:
@@ -761,10 +765,10 @@ if predict_btn:
         is_weekend = int(day_of_week in [6, 7])
         is_long_distance = int(flight_distance > 1500)
 
-        p_pressure = forecast_weather["pressure"] if forecast_weather else 1013.25
-        p_wind_dir = forecast_weather["wind_dir"] if forecast_weather else 180.0
-        p_wind_gusts = forecast_weather["wind_gusts"] if forecast_weather else 12.0
-        p_snowfall = forecast_weather["snowfall"] if forecast_weather else 0.0
+        p_pressure = forecast_weather["pressure"] if forecast_weather else np.nan
+        p_wind_dir = forecast_weather["wind_dir"] if forecast_weather else np.nan
+        p_wind_gusts = forecast_weather["wind_gusts"] if forecast_weather else np.nan
+        p_snowfall = forecast_weather["snowfall"] if forecast_weather else np.nan
 
         input_df = pd.DataFrame([{
             "DISTANCE": flight_distance,
@@ -802,7 +806,7 @@ if predict_btn:
 
 
 # ==================================================
-# ВЫВОД РЕЗУЛЬТАТОВ
+# NƏTİCƏLƏRİN ƏKS OLUNMASI
 # ==================================================
 
 if st.session_state.get("res_active", False):
@@ -916,7 +920,7 @@ if st.session_state.get("res_active", False):
 
 
 # ==================================================
-# ПОДВАЛ
+# FOOTER
 # ==================================================
 
 st.markdown("""

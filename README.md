@@ -3,6 +3,14 @@
   <img src="photos/Flight Delay Analysis Above the Clouds.png" width="100%">
 </p>
 
+## 🚀 Live Demo
+
+Try the Flight Delay Predictor application:
+
+[![Open App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://flight-delay-risk-predictor.streamlit.app/)
+
+**Live Application:** https://flight-delay-risk-predictor.streamlit.app/
+
 ## 📌 Layihə haqqında
 
 Uçuşların gecikməsi sərnişinlərə, aviaşirkətlərə və hava limanlarının fəaliyyətinə təsir edən mühüm problemlərdən biridir. Gecikmələrin səbəblərini və yaranma qanunauyğunluqlarını araşdırmaq daha yaxşı planlaşdırma və qərarların qəbul edilməsinə kömək edə bilər.

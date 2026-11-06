@@ -1240,7 +1240,7 @@ if st.session_state.get("res_active", False):
 
             for _, row in shap_df.iterrows():
 
-                val = row["Contribution"]
+                val = float(row["Contribution"])
 
                 is_pos = val > 0
 

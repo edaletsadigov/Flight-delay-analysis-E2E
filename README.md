@@ -173,5 +173,58 @@ EDA və statistik təhlil mərhələlərində aşağıdakı nəticələr əldə 
 
 Bu nəticələr müşahidə olunan məlumatlara əsaslanır. Statistik əhəmiyyət səbəb-nəticə əlaqəsini sübut etmir. Nəticələr məlumatların keyfiyyətindən, çatışmayan qiymətlərdən və istifadə olunan təriflərdən asılı ola bilər.
 
+## 📊 Biznes Insight-ları və Tövsiyələr
+
+EDA (Exploratory Data Analysis) nəticələrinə əsasən, uçuş gecikmələri ilə bağlı iki əsas tendensiya müəyyən edilmişdir:
+
+### 1. Hava Şəraitinin Gecikmələrə Təsiri ❄️
+
+*Insight:*
+- Ən yüksək gecikmə göstəricisi qarlı hava şəraitində müşahidə edilmişdir.
+- Qar yağması uçuş-enmə zolaqlarının vəziyyətinə, təyyarələrin hazırlanmasına və hava limanının yerüstü əməliyyatlarına təsir göstərə bilər.
+
+*Biznes Tövsiyələri:*
+- Hava proqnozlarını uçuş planlaşdırma prosesinə inteqrasiya etmək.
+- Qarlı hava şəraitində alternativ əməliyyat planları hazırlamaq.
+- Əlavə yerüstü xidmət və texniki resurslar ayırmaq.
+- Sərnişinləri mümkün gecikmələr barədə əvvəlcədən məlumatlandırmaq.
+
+### 2. Uçuş Saatlarının Gecikmələrə Təsiri 🌙
+
+*Insight:*
+- Axşam saatlarında həyata keçirilən uçuşlarda gecikmə göstəricisi daha yüksəkdir.
+- Bu tendensiya gün ərzində əvvəlki reyslərdən ötürülən gecikmələr və əməliyyat yükünün artması ilə əlaqəli ola bilər.
+
+*Biznes Tövsiyələri:*
+- Axşam uçuşlarının planlaşdırılmasında əlavə vaxt ehtiyatı nəzərə almaq.
+- Təyyarələrin reyslərarası hazırlıq müddətini optimallaşdırmaq.
+- Gecikmə riski yüksək olan uçuşlara əlavə əməliyyat dəstəyi ayırmaq.
+- Uçuş cədvəllərini tarixi gecikmə tendensiyalarına əsasən optimallaşdırmaq.
+
+### 3. Proqnozlaşdırıcı Analitika və Qərarvermə 🤖
+
+*Insight:*
+- XGBoost modeli uçuşun 15 dəqiqə və daha çox gecikmə ehtimalını proqnozlaşdırır.
+- Model hava şəraiti, uçuş saatı, aviaşirkət və hava limanları kimi müxtəlif xüsusiyyətlərdən istifadə edir.
+
+*Biznes Tövsiyələri:*
+- Gecikmə ehtimalı yüksək olan uçuşları əvvəlcədən müəyyən etmək.
+- Yüksək riskli uçuşlar üçün erkən xəbərdarlıq sistemi yaratmaq.
+- Proqnoz nəticələrindən uçuşların və əməliyyat resurslarının planlaşdırılmasında istifadə etmək.
+- Modelin performansını mütəmadi qiymətləndirmək və yeni məlumatlarla yeniləmək.
+
+### 🎯 Gözlənilən Biznes Faydaları
+
+| İstiqamət | Gözlənilən fayda |
+|---|---|
+| Uçuşların planlaşdırılması | Daha effektiv uçuş cədvəlləri |
+| Hava şəraitinin idarə edilməsi | Əlverişsiz hava şəraitinə hazırlıq |
+| Əməliyyat səmərəliliyi | Resursların optimal bölüşdürülməsi |
+| Risklərin idarə edilməsi | Gecikmələrin əvvəlcədən müəyyən edilməsi |
+| Sərnişin məmnuniyyəti | Vaxtında məlumatlandırma |
+| Qərarvermə | Məlumatlara əsaslanan qərarlar |
+
+*Ümumi Məqsəd:* Tarixi uçuş məlumatları və Machine Learning texnologiyalarından istifadə etməklə potensial uçuş gecikmələrini əvvəlcədən proqnozlaşdırmaq, aviaşirkətlərin əməliyyat səmərəliliyini artırmaq və sərnişin məmnuniyyətini yaxşılaşdırmaq.
+
 
 **GitHub repozitoriyası:** [Flight-delay-analysis-E2E](https://github.com/edaletsadigov/Flight-delay-analysis-E2E)
